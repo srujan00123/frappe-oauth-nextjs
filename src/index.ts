@@ -1,10 +1,28 @@
-// Types
-export * from './types';
+// Types - export all types explicitly
+export {
+    FrappeOAuthConfig,
+    AuthorizationRequestOptions,
+    TokenRequestOptions,
+    TokenResponse,
+    RefreshTokenOptions,
+    FrappeUserInfo,
+    TokenIntrospectionResponse,
+    FrappeIdTokenPayload,
+    FrappeSession,
+    RevokeTokenOptions,
+    FrappeAuthError
+} from './types';
 
 // Server-side utilities
-export * from './oauth-client';
-export * from './session';
-export * from './pkce';
+export { FrappeOAuthClient } from './oauth-client';
+export {
+    createSession,
+    getSessionCookie,
+    setSessionCookie,
+    clearSessionCookie,
+    checkSession
+} from './session';
+export { generateCodeVerifier, generateCodeChallenge, generateState } from './pkce';
 
 // API routes
 export { checkAuth } from './api/auth/check';

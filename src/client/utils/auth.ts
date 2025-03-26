@@ -53,4 +53,6 @@ export async function checkAuth(checkUrl = '/api/auth/check'): Promise<{
             user: null
         };
     }
-} 
+}
+
+// Export any auth utility function types explicitly 
