@@ -1,19 +1,25 @@
-// Export types
+// Types
 export * from './types';
 
-// Export OAuth client
-export { FrappeOAuthClient } from './oauth-client';
+// Server-side utilities
+export * from './oauth-client';
+export * from './session';
+export * from './pkce';
 
-// Export session utilities
-export {
-    setSessionCookie,
-    getSessionCookie,
-    clearSessionCookie,
-    checkSession,
-    createSession
-} from './session';
+// API routes
+export { checkAuth } from './api/auth/check';
+export { logout } from './api/auth/logout';
+export { refreshToken } from './api/auth/refresh';
+export { getServerInfo } from './api/auth/server';
+export { exchangeToken } from './api/auth/token';
 
-// Export PKCE utilities
+// Proxy utilities
+export { proxyToFrappeApi } from './proxy/api-proxy';
+
+// React components and hooks 
 export {
-    generatePKCEPair
-} from './pkce'; 
+    AuthContext,
+    AuthContextType,
+    AuthProvider,
+    useAuth
+} from './client'; 

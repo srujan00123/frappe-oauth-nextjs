@@ -1,181 +1,75 @@
-import { parse, serialize } from 'cookie';
-import { NextApiRequest, NextApiResponse } from 'next';
-import {
-    FrappeOAuthConfig,
-    FrappeSession,
-    GetSessionOptions
-} from './types';
-import { FrappeOAuthClient } from './oauth-client';
-
-// Default cookie name
-const DEFAULT_SESSION_COOKIE = 'frappe_session';
-
-// Default secure cookie options
-const DEFAULT_COOKIE_OPTIONS = {
-    httpOnly: true,
-    secure: true,
-    sameSite: 'lax' as const,
-    path: '/',
-    maxAge: 30 * 24 * 60 * 60, // 30 days
-};
+import { cookies } from 'next/headers';
+import { FrappeOAuthConfig, FrappeSession } from './types';
 
 /**
- * Sets a session cookie
+ * Create a new session object from token response
  */
-export const setSessionCookie = (
-    res: NextApiResponse,
-    session: FrappeSession,
-    config: FrappeOAuthConfig
-): void => {
-    const cookieName = config.cookieName || DEFAULT_SESSION_COOKIE;
-    const cookieOptions = {
-        ...DEFAULT_COOKIE_OPTIONS,
-        ...config.cookieOptions,
+export function createSession(tokenResponse: any): FrappeSession {
+    return {
+        accessToken: tokenResponse.access_token,
+        refreshToken: tokenResponse.refresh_token,
+        expiresAt: tokenResponse.expires_at || Date.now() + tokenResponse.expires_in * 1000,
+        tokenType: tokenResponse.token_type,
+        scope: tokenResponse.scope,
+        idToken: tokenResponse.id_token
     };
-
-    res.setHeader('Set-Cookie', serialize(
-        cookieName,
-        JSON.stringify(session),
-        cookieOptions
-    ));
-};
+}
 
 /**
- * Gets the session from cookies
+ * Get the session cookie
  */
-export const getSessionCookie = (
-    req: NextApiRequest,
-    config: FrappeOAuthConfig
-): FrappeSession | null => {
-    const cookieName = config.cookieName || DEFAULT_SESSION_COOKIE;
-    const cookies = parse(req.headers.cookie || '');
+export function getSessionCookie(config: FrappeOAuthConfig): FrappeSession | null {
+    const cookieName = config.cookieName || 'frappe_oauth_session';
+    const cookieStore = cookies();
+    const sessionCookie = cookieStore.get(cookieName);
 
-    try {
-        const sessionCookie = cookies[cookieName];
-        if (!sessionCookie) return null;
-        return JSON.parse(sessionCookie) as FrappeSession;
-    } catch (error) {
-        console.error('Error parsing session cookie:', error);
+    if (!sessionCookie?.value) {
         return null;
     }
-};
+
+    try {
+        return JSON.parse(sessionCookie.value) as FrappeSession;
+    } catch (error) {
+        return null;
+    }
+}
 
 /**
- * Clears the session cookie
+ * Set the session cookie
  */
-export const clearSessionCookie = (
-    res: NextApiResponse,
-    config: FrappeOAuthConfig
-): void => {
-    const cookieName = config.cookieName || DEFAULT_SESSION_COOKIE;
-    const cookieOptions = {
-        ...DEFAULT_COOKIE_OPTIONS,
-        ...config.cookieOptions,
-        maxAge: 0,
-    };
+export function setSessionCookie(session: FrappeSession, config: FrappeOAuthConfig): void {
+    const cookieName = config.cookieName || 'frappe_oauth_session';
+    const cookieStore = cookies();
 
-    res.setHeader('Set-Cookie', serialize(
-        cookieName,
-        '',
-        cookieOptions
-    ));
-};
+    cookieStore.set(cookieName, JSON.stringify(session), {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: Math.floor((session.expiresAt - Date.now()) / 1000)
+    });
+}
 
 /**
- * Check if session is valid and refresh if needed
+ * Clear the session cookie
  */
-export const checkSession = async (
-    options: GetSessionOptions,
-    config: FrappeOAuthConfig
-): Promise<FrappeSession | null> => {
-    const { req, res } = options;
-    const session = getSessionCookie(req, config);
+export function clearSessionCookie(config: FrappeOAuthConfig): void {
+    const cookieName = config.cookieName || 'frappe_oauth_session';
+    const cookieStore = cookies();
 
-    if (!session) return null;
-
-    // Check if token is expired or about to expire (within 5 minutes)
-    const now = Math.floor(Date.now() / 1000);
-    const isExpired = session.expiresAt <= now;
-    const isAboutToExpire = session.expiresAt <= now + 300; // 5 min buffer
-
-    if (!isExpired && !isAboutToExpire) {
-        return session;
-    }
-
-    // If token is expired or about to expire and we have refresh token, try to refresh
-    if (session.tokenSet.refresh_token && res) {
-        try {
-            const oauthClient = new FrappeOAuthClient(config);
-            const response = await oauthClient.refreshToken(session.tokenSet.refresh_token);
-
-            const expiresAt = Math.floor(Date.now() / 1000) + response.expires_in;
-
-            const newSession: FrappeSession = {
-                tokenSet: {
-                    access_token: response.access_token,
-                    token_type: response.token_type,
-                    refresh_token: response.refresh_token,
-                    id_token: response.id_token,
-                    expires_at: expiresAt
-                },
-                expiresAt,
-                user: session.user
-            };
-
-            // Update the session cookie
-            setSessionCookie(res, newSession, config);
-            return newSession;
-        } catch (error) {
-            console.error('Error refreshing token:', error);
-            clearSessionCookie(res, config);
-            return null;
-        }
-    }
-
-    // If no refresh token or no response object, clear the cookie if possible
-    if (res) {
-        clearSessionCookie(res, config);
-    }
-
-    return null;
-};
+    cookieStore.delete(cookieName);
+}
 
 /**
- * Create a new session from token response
+ * Check if the current session is valid
  */
-export const createSession = async (
-    tokenResponse: {
-        access_token: string;
-        refresh_token: string;
-        token_type: string;
-        expires_in: number;
-        id_token?: string;
-    },
-    getUserInfo: boolean,
-    oauthClient: FrappeOAuthClient
-): Promise<FrappeSession> => {
-    const expiresAt = Math.floor(Date.now() / 1000) + tokenResponse.expires_in;
+export function checkSession(config: FrappeOAuthConfig): boolean {
+    const session = getSessionCookie(config);
 
-    const session: FrappeSession = {
-        tokenSet: {
-            access_token: tokenResponse.access_token,
-            refresh_token: tokenResponse.refresh_token,
-            token_type: tokenResponse.token_type,
-            id_token: tokenResponse.id_token,
-            expires_at: expiresAt
-        },
-        expiresAt
-    };
-
-    if (getUserInfo) {
-        try {
-            const userInfo = await oauthClient.getUserInfo(tokenResponse.access_token);
-            session.user = userInfo;
-        } catch (error) {
-            console.error('Error fetching user info:', error);
-            // Continue without user info
-        }
+    if (!session) {
+        return false;
     }
 
-    return session;
-}; 
+    // Check if the session is expired (with 60s buffer)
+    return session.expiresAt > Date.now() + 60000;
+} 

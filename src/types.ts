@@ -4,14 +4,15 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import type { UserInfoResponse } from 'openid-client';
 
 export interface FrappeOAuthConfig {
-    baseUrl: string;
     clientId: string;
-    clientSecret?: string;
+    serverUrl: string;
     redirectUri: string;
     scope?: string;
+    tokenEndpoint?: string;
+    authorizationEndpoint?: string;
+    logoutEndpoint?: string;
+    userInfoEndpoint?: string;
     cookieName?: string;
-    cookieOptions?: CookieSerializeOptions;
-    usePKCE?: boolean;
 }
 
 export interface AuthorizationRequestOptions {
@@ -19,7 +20,7 @@ export interface AuthorizationRequestOptions {
     scope?: string;
     state?: string;
     codeChallenge?: string;
-    codeChallengeMethod?: 'plain' | 's256';
+    codeChallengeMethod?: 'plain' | 'S256';
 }
 
 export interface TokenRequestOptions {
@@ -42,18 +43,11 @@ export interface RefreshTokenOptions {
     scope?: string;
 }
 
-export interface FrappeUserInfo extends UserInfoResponse {
+export interface FrappeUserInfo {
     sub: string;
-    name: string;
-    given_name?: string;
-    family_name?: string;
-    iss: string;
-    picture?: string;
+    name?: string;
     email?: string;
-    iat: number;
-    exp: number;
-    aud: string;
-    roles: string[];
+    [key: string]: any;
 }
 
 export interface TokenIntrospectionResponse {
@@ -84,15 +78,12 @@ export interface FrappeIdTokenPayload extends JwtPayload {
 }
 
 export interface FrappeSession {
-    tokenSet: {
-        access_token: string;
-        token_type: string;
-        id_token?: string;
-        refresh_token?: string;
-        expires_at?: number;
-    };
+    accessToken: string;
+    refreshToken: string;
     expiresAt: number;
-    user?: FrappeUserInfo;
+    tokenType: string;
+    scope?: string;
+    idToken?: string;
 }
 
 export interface GetSessionOptions {
@@ -102,4 +93,10 @@ export interface GetSessionOptions {
 
 export interface RevokeTokenOptions {
     token: string;
+}
+
+export interface FrappeAuthError {
+    message: string;
+    status?: number;
+    code?: string;
 } 

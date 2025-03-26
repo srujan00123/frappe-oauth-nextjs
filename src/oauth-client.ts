@@ -1,4 +1,4 @@
-import { FrappeOAuthConfig, FrappeUserInfo } from './types';
+import { FrappeOAuthConfig, FrappeUserInfo, FrappeSession } from './types';
 import crypto from 'crypto';
 
 export class FrappeOAuthClient {
@@ -33,171 +33,198 @@ export class FrappeOAuthClient {
     }
 
     /**
-     * Generate authorization URL
+     * Get the authorization URL for redirecting the user
      */
-    public getAuthorizationUrl(
-        options: {
-            state?: string;
-            codeVerifier?: string;
-            codeChallenge?: string;
-            scope?: string;
-            responseType?: string;
-        } = {}
-    ): string {
-        const scope = options.scope || this.config.scope || 'openid all';
-        const responseType = options.responseType || 'code';
+    getAuthorizationUrl(state: string, codeChallenge?: string): string {
+        const url = new URL(this.getAuthorizationEndpoint());
 
-        const params = new URLSearchParams({
-            client_id: this.config.clientId,
-            redirect_uri: this.config.redirectUri,
-            scope,
-            response_type: responseType,
-        });
+        url.searchParams.append('response_type', 'code');
+        url.searchParams.append('client_id', this.config.clientId);
+        url.searchParams.append('redirect_uri', this.config.redirectUri);
+        url.searchParams.append('state', state);
 
-        // Add PKCE parameters if enabled
-        if (this.config.usePKCE !== false && options.codeVerifier) {
-            const codeChallenge = options.codeChallenge || this.generateCodeChallenge(options.codeVerifier);
-            params.append('code_challenge', codeChallenge);
-            params.append('code_challenge_method', 'S256');
+        if (this.config.scope) {
+            url.searchParams.append('scope', this.config.scope);
         }
 
-        // Add state parameter if provided
-        if (options.state) {
-            params.append('state', options.state);
+        if (codeChallenge) {
+            url.searchParams.append('code_challenge', codeChallenge);
+            url.searchParams.append('code_challenge_method', 'S256');
         }
 
-        return `${this.config.baseUrl}/api/method/frappe.integrations.oauth2.authorize?${params.toString()}`;
+        return url.toString();
     }
 
     /**
      * Exchange authorization code for tokens
      */
-    public async getToken(
-        code: string,
-        codeVerifier?: string
-    ): Promise<any> {
-        const params = new URLSearchParams({
-            grant_type: 'authorization_code',
-            code,
-            client_id: this.config.clientId,
-            redirect_uri: this.config.redirectUri
-        });
+    async exchangeCodeForToken(code: string, codeVerifier?: string): Promise<any> {
+        const params = new URLSearchParams();
+        params.append('grant_type', 'authorization_code');
+        params.append('client_id', this.config.clientId);
+        params.append('redirect_uri', this.config.redirectUri);
+        params.append('code', code);
 
         if (codeVerifier) {
             params.append('code_verifier', codeVerifier);
         }
 
-        if (this.config.clientSecret) {
-            params.append('client_secret', this.config.clientSecret);
-        }
-
-        const response = await fetch(`${this.config.baseUrl}/api/method/frappe.integrations.oauth2.get_token`, {
+        const response = await fetch(this.getTokenEndpoint(), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
-                'Accept': 'application/json'
             },
-            body: params
+            body: params,
         });
 
         if (!response.ok) {
-            throw new Error(`Token request failed: ${response.status} ${response.statusText}`);
+            throw new Error(`Token exchange failed: ${response.statusText}`);
         }
 
         return response.json();
     }
 
     /**
-     * Refresh access token using refresh token
+     * Refresh the access token using the refresh token
      */
-    public async refreshToken(refreshToken: string): Promise<any> {
-        const params = new URLSearchParams({
-            grant_type: 'refresh_token',
-            refresh_token: refreshToken,
-            client_id: this.config.clientId
-        });
+    async refreshToken(refreshToken: string): Promise<any> {
+        const params = new URLSearchParams();
+        params.append('grant_type', 'refresh_token');
+        params.append('client_id', this.config.clientId);
+        params.append('refresh_token', refreshToken);
 
-        if (this.config.clientSecret) {
-            params.append('client_secret', this.config.clientSecret);
-        }
-
-        const response = await fetch(`${this.config.baseUrl}/api/method/frappe.integrations.oauth2.get_token`, {
+        const response = await fetch(this.getTokenEndpoint(), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
-                'Accept': 'application/json'
             },
-            body: params
+            body: params,
         });
 
         if (!response.ok) {
-            throw new Error(`Token refresh failed: ${response.status} ${response.statusText}`);
+            throw new Error(`Token refresh failed: ${response.statusText}`);
         }
 
         return response.json();
+    }
+
+    /**
+     * Logout the user by revoking their tokens
+     */
+    async logout(session: FrappeSession): Promise<boolean> {
+        try {
+            // First try to revoke the access token
+            await this.revokeToken(session.accessToken);
+
+            // Then revoke the refresh token if available
+            if (session.refreshToken) {
+                await this.revokeToken(session.refreshToken);
+            }
+
+            return true;
+        } catch (error) {
+            console.error('Error during logout:', error);
+            return false;
+        }
     }
 
     /**
      * Revoke a token
      */
-    public async revokeToken(token: string): Promise<void> {
-        const params = new URLSearchParams({
-            token
-        });
+    private async revokeToken(token: string): Promise<void> {
+        const params = new URLSearchParams();
+        params.append('token', token);
+        params.append('client_id', this.config.clientId);
 
-        const response = await fetch(`${this.config.baseUrl}/api/method/frappe.integrations.oauth2.revoke_token`, {
+        const url = this.getLogoutEndpoint();
+        const response = await fetch(url, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/x-www-form-urlencoded'
+                'Content-Type': 'application/x-www-form-urlencoded',
             },
-            body: params
+            body: params,
         });
 
         if (!response.ok) {
-            throw new Error(`Token revocation failed: ${response.status} ${response.statusText}`);
+            console.warn(`Token revocation warning: ${response.statusText}`);
         }
     }
 
     /**
-     * Get user info from OpenID endpoint
+     * Get user information
      */
-    public async getUserInfo(accessToken: string): Promise<FrappeUserInfo> {
-        const response = await fetch(`${this.config.baseUrl}/api/method/frappe.integrations.oauth2.openid_profile`, {
-            method: 'GET',
+    async getUserInfo(accessToken: string): Promise<any> {
+        const response = await fetch(this.getUserInfoEndpoint(), {
             headers: {
-                'Authorization': `Bearer ${accessToken}`
-            }
+                'Authorization': `Bearer ${accessToken}`,
+            },
         });
 
         if (!response.ok) {
-            throw new Error(`User info request failed: ${response.status} ${response.statusText}`);
+            throw new Error(`User info request failed: ${response.statusText}`);
         }
 
         return response.json();
     }
 
     /**
-     * Introspect a token to check its validity and get information
+     * Get the token endpoint URL
      */
-    public async introspectToken(
-        token: string,
-        tokenTypeHint: 'access_token' | 'refresh_token' = 'access_token'
-    ): Promise<any> {
-        const params = new URLSearchParams({
-            token,
-            token_type_hint: tokenTypeHint
-        });
+    private getTokenEndpoint(): string {
+        if (this.config.tokenEndpoint) {
+            return this.config.tokenEndpoint;
+        }
+        return `${this.config.serverUrl}/oauth/token`;
+    }
 
-        const response = await fetch(`${this.config.baseUrl}/api/method/frappe.integrations.oauth2.introspect_token`, {
+    /**
+     * Get the authorization endpoint URL
+     */
+    private getAuthorizationEndpoint(): string {
+        if (this.config.authorizationEndpoint) {
+            return this.config.authorizationEndpoint;
+        }
+        return `${this.config.serverUrl}/oauth/authorize`;
+    }
+
+    /**
+     * Get the logout endpoint URL
+     */
+    private getLogoutEndpoint(): string {
+        if (this.config.logoutEndpoint) {
+            return this.config.logoutEndpoint;
+        }
+        return `${this.config.serverUrl}/oauth/revoke_token`;
+    }
+
+    /**
+     * Get the userinfo endpoint URL
+     */
+    private getUserInfoEndpoint(): string {
+        if (this.config.userInfoEndpoint) {
+            return this.config.userInfoEndpoint;
+        }
+        return `${this.config.serverUrl}/api/method/frappe.integrations.oauth2.openid_profile`;
+    }
+
+    /**
+     * Introspect token to check if it's valid
+     */
+    async introspectToken(token: string): Promise<any> {
+        const params = new URLSearchParams();
+        params.append('token', token);
+        params.append('client_id', this.config.clientId);
+
+        const response = await fetch(`${this.config.serverUrl}/api/method/frappe.integrations.oauth2.introspect_token`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/x-www-form-urlencoded'
+                'Content-Type': 'application/x-www-form-urlencoded',
             },
-            body: params
+            body: params,
         });
 
         if (!response.ok) {
-            throw new Error(`Token introspection failed: ${response.status} ${response.statusText}`);
+            throw new Error(`Token introspection failed: ${response.statusText}`);
         }
 
         return response.json();

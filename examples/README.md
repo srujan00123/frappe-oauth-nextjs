@@ -1,30 +1,16 @@
-# Frappe OAuth for Next.js
+# Frappe OAuth NextJS Examples
 
-A comprehensive OAuth client package for integrating Frappe with Next.js applications. Provides full authentication flow, secure session management, and API proxy utilities.
+This directory contains examples of how to use the `frappe-oauth-nextjs` package.
 
-## Features
+## Basic Setup
 
-- **Modern API Routes Support**: Designed for App Router and Next.js API Routes
-- **Secure Session Management**: Server-side cookie storage for secure token handling
-- **Full Authentication Flow**: Complete OAuth flow with PKCE support
-- **API Proxy Utilities**: Easily proxy requests to Frappe API while handling authentication
-- **React Integration**: Authentication context provider and hooks for client-side integration
-- **TypeScript Support**: Fully typed API for better developer experience
+Here's a basic example of how to set up and use the package in a Next.js application:
 
-## Installation
+### API Routes
 
-```bash
-npm install frappe-oauth-nextjs
-```
-
-## Basic Usage
-
-### 1. API Routes Setup
-
-Create API routes to handle authentication flow:
+Create a file `app/api/auth/[...action]/route.ts`:
 
 ```typescript
-// app/api/auth/[...action]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import {
   checkAuth,
@@ -52,6 +38,7 @@ export async function GET(
 ) {
   const action = params.action;
 
+  // Handle different API actions
   switch (action) {
     case 'check':
       return checkAuth(request, config);
@@ -65,8 +52,7 @@ export async function GET(
       // Generate state for CSRF protection
       const state = generateState();
       
-      // Create the cookies for code verifier and state
-      const cookieStore = request.cookies;
+      // Create cookies and redirect to authorization endpoint
       const response = NextResponse.redirect(
         `${config.serverUrl}/oauth/authorize?` + 
         `client_id=${config.clientId}&` +
@@ -147,6 +133,7 @@ export async function POST(
 ) {
   const action = params.action;
 
+  // Handle different API actions
   switch (action) {
     case 'token':
       return exchangeToken(request, config);
@@ -160,12 +147,11 @@ export async function POST(
 }
 ```
 
-### 2. Client-Side Integration
+### Client-Side Auth Provider
 
-Wrap your application with the `AuthProvider`:
+In your root layout or page component:
 
 ```tsx
-// app/layout.tsx
 'use client';
 
 import { AuthProvider } from 'frappe-oauth-nextjs';
@@ -187,39 +173,99 @@ export default function RootLayout({
 }
 ```
 
-### 3. Using the Auth Hook
-
-Use the `useAuth` hook in your components:
+### Using Auth Context in a Component
 
 ```tsx
 'use client';
 
 import { useAuth } from 'frappe-oauth-nextjs';
 
-export default function LoginButton() {
+export default function Profile() {
   const { isAuthenticated, isLoading, user, login, logout } = useAuth();
 
   if (isLoading) {
-    return <button disabled>Loading...</button>;
+    return <div>Loading...</div>;
   }
 
-  if (isAuthenticated) {
-    return <button onClick={logout}>Logout ({user?.name})</button>;
+  if (!isAuthenticated) {
+    return (
+      <div>
+        <h1>Not Authenticated</h1>
+        <button onClick={login}>Login</button>
+      </div>
+    );
   }
 
-  return <button onClick={login}>Login</button>;
+  return (
+    <div>
+      <h1>Welcome, {user?.name || 'User'}</h1>
+      <pre>{JSON.stringify(user, null, 2)}</pre>
+      <button onClick={logout}>Logout</button>
+    </div>
+  );
 }
 ```
 
-### 4. API Proxy
+### API Proxy Example
 
-Create an API proxy to forward requests to Frappe:
+```tsx
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useAuth } from 'frappe-oauth-nextjs';
+
+export default function TodoList() {
+  const { isAuthenticated } = useAuth();
+  const [todos, setTodos] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchTodos();
+    }
+  }, [isAuthenticated]);
+
+  async function fetchTodos() {
+    try {
+      const response = await fetch('/api/frappe/todo?filters={"status":"Open"}');
+      const data = await response.json();
+      setTodos(data.data || []);
+    } catch (error) {
+      console.error('Error fetching todos:', error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (!isAuthenticated) {
+    return <div>Please login to view your todos</div>;
+  }
+
+  if (loading) {
+    return <div>Loading todos...</div>;
+  }
+
+  return (
+    <div>
+      <h1>My Todos</h1>
+      <ul>
+        {todos.map((todo: any) => (
+          <li key={todo.name}>{todo.description}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
+
+And the API proxy route:
 
 ```typescript
 // app/api/frappe/[...path]/route.ts
 import { NextRequest } from 'next/server';
 import { proxyToFrappeApi, FrappeOAuthConfig } from 'frappe-oauth-nextjs';
 
+// Configure Frappe OAuth
 const config: FrappeOAuthConfig = {
   clientId: process.env.FRAPPE_CLIENT_ID || '',
   serverUrl: process.env.FRAPPE_SERVER_URL || '',
@@ -242,52 +288,4 @@ export async function POST(
   const path = params.path.join('/');
   return proxyToFrappeApi(request, `/api/resource/${path}`, config);
 }
-```
-
-## Configuration Options
-
-The `FrappeOAuthConfig` interface supports the following options:
-
-```typescript
-interface FrappeOAuthConfig {
-  clientId: string;            // OAuth client ID
-  serverUrl: string;           // Frappe server URL
-  redirectUri: string;         // OAuth redirect URI
-  scope?: string;              // OAuth scope (default: 'all openid')
-  tokenEndpoint?: string;      // Custom token endpoint
-  authorizationEndpoint?: string; // Custom authorization endpoint
-  logoutEndpoint?: string;     // Custom logout endpoint
-  userInfoEndpoint?: string;   // Custom userinfo endpoint
-  cookieName?: string;         // Session cookie name (default: 'frappe_oauth_session')
-}
-```
-
-## Advanced Usage
-
-For more advanced usage examples, check the [examples](./examples) directory.
-
-## API Reference
-
-### Server-Side Utilities
-
-- `checkAuth`: Check if the user is authenticated
-- `refreshToken`: Refresh the access token
-- `logout`: Logout the user and revoke tokens
-- `getServerInfo`: Get OAuth server information
-- `proxyToFrappeApi`: Proxy requests to Frappe API with authentication
-
-### Client-Side Utilities
-
-- `AuthProvider`: React context provider for authentication
-- `useAuth`: React hook to access authentication state and methods
-- `AuthContext`: Raw React context for custom implementations
-
-### PKCE Utilities
-
-- `generateCodeVerifier`: Generate a PKCE code verifier
-- `generateCodeChallenge`: Generate a PKCE code challenge
-- `generateState`: Generate a random state parameter
-
-## License
-
-MIT
+``` 
