@@ -1,43 +1,14 @@
-// Types - export all types explicitly
-export {
-    FrappeOAuthConfig,
-    AuthorizationRequestOptions,
-    TokenRequestOptions,
-    TokenResponse,
-    RefreshTokenOptions,
-    FrappeUserInfo,
-    TokenIntrospectionResponse,
-    FrappeIdTokenPayload,
-    FrappeSession,
-    RevokeTokenOptions,
-    FrappeAuthError
-} from './types';
+// Export the Frappe provider for NextAuth.js
+import { FrappeProvider } from './providers/frappe';
+import type { FrappeProfile, FrappeProviderConfig } from './types';
 
-// Server-side utilities
-export { FrappeOAuthClient } from './oauth-client';
-export {
-    createSession,
-    getSessionCookie,
-    setSessionCookie,
-    clearSessionCookie,
-    checkSession
-} from './session';
-export { generateCodeVerifier, generateCodeChallenge, generateState } from './pkce';
+// Re-export types for consumers
+export * from './types';
 
-// API routes
-export { checkAuth } from './api/auth/check';
-export { logout } from './api/auth/logout';
-export { refreshToken } from './api/auth/refresh';
-export { getServerInfo } from './api/auth/server';
-export { exchangeToken } from './api/auth/token';
+// Export the Frappe provider
+export { FrappeProvider };
 
-// Proxy utilities
-export { proxyToFrappeApi } from './proxy/api-proxy';
-
-// React components and hooks 
-export {
-    AuthContext,
-    AuthContextType,
-    AuthProvider,
-    useAuth
-} from './client'; 
+// Export default as a function that returns the Frappe provider
+export default function Frappe(options: FrappeProviderConfig) {
+    return FrappeProvider(options);
+} 

@@ -1,7 +1,7 @@
 {
-  "name": "frappe-oauth-next",
+  "name": "frappe-next-auth",
   "version": "1.0.0",
-  "description": "OAuth client for Frappe to work with Next.js applications with full authentication flow and utilities",
+  "description": "NextAuth.js provider for Frappe authentication with Next.js applications",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
@@ -20,6 +20,8 @@
     "nextjs",
     "next.js",
     "authentication",
+    "next-auth",
+    "auth",
     "react",
     "hooks"
   ],
@@ -34,7 +36,8 @@
   },
   "homepage": "https://github.com/srujan00123/frappe-oauth-nextjs#readme",
   "dependencies": {
-    "jsonwebtoken": "^9.0.2"
+    "jsonwebtoken": "^9.0.2",
+    "next-auth": "^4.24.11"
   },
   "devDependencies": {
     "@types/jsonwebtoken": "^9.0.5",
@@ -46,6 +49,7 @@
   },
   "peerDependencies": {
     "next": ">=13.0.0",
-    "react": ">=17.0.0"
+    "react": ">=17.0.0",
+    "next-auth": ">=4.22.0"
   }
 }

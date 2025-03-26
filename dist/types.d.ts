@@ -1,5 +1,23 @@
 import { JwtPayload } from 'jsonwebtoken';
 import { NextApiRequest, NextApiResponse } from 'next';
+export interface FrappeProfile {
+    sub: string;
+    name: string;
+    email?: string;
+    picture?: string;
+    roles?: string[];
+    iss: string;
+    [key: string]: any;
+}
+export interface FrappeProviderConfig {
+    clientId: string;
+    clientSecret: string;
+    serverUrl: string;
+    authorization?: {
+        params?: Record<string, string>;
+    };
+    [key: string]: any;
+}
 export interface FrappeOAuthConfig {
     clientId: string;
     serverUrl: string;

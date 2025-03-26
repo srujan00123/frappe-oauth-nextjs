@@ -1,160 +1,116 @@
-# Frappe OAuth Next Examples
+# Frappe NextAuth Examples
 
-This directory contains examples of how to use the `frappe-oauth-next` package.
+This directory contains examples of how to use the `frappe-next-auth` package with Next.js and NextAuth.js.
 
 ## Basic Setup
 
 Here's a basic example of how to set up and use the package in a Next.js application:
 
-### API Routes
+### API Routes (Next.js App Router)
 
-Create a file `app/api/auth/[...action]/route.ts`:
+Create a file `app/api/auth/[...nextauth]/route.ts`:
 
 ```typescript
-import { NextRequest, NextResponse } from 'next/server';
-import {
-  checkAuth,
-  logout,
-  refreshToken,
-  getServerInfo,
-  exchangeToken,
-  generateCodeVerifier,
-  generateCodeChallenge,
-  generateState,
-  FrappeOAuthConfig
-} from 'frappe-oauth-next';
+import NextAuth from "next-auth";
+import FrappeProvider from "frappe-next-auth";
 
-// Configure Frappe OAuth
-const config: FrappeOAuthConfig = {
-  clientId: process.env.FRAPPE_CLIENT_ID || '',
-  serverUrl: process.env.FRAPPE_SERVER_URL || '',
-  redirectUri: process.env.REDIRECT_URI || '',
-  scope: 'all openid'
+export const authOptions = {
+  providers: [
+    FrappeProvider({
+      clientId: process.env.FRAPPE_CLIENT_ID || '',
+      clientSecret: process.env.FRAPPE_CLIENT_SECRET || '',
+      serverUrl: process.env.FRAPPE_SERVER_URL || '',
+    }),
+  ],
+  callbacks: {
+    async jwt({ token, account, profile }) {
+      // Persist the Frappe access_token to the token right after signin
+      if (account?.access_token) {
+        token.accessToken = account.access_token;
+      }
+      if (profile?.roles) {
+        token.roles = profile.roles;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      // Send properties to the client, like an access_token and roles
+      session.accessToken = token.accessToken as string;
+      session.user.roles = token.roles as string[];
+      return session;
+    },
+  },
 };
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { action: string } }
-) {
-  const action = params.action;
+const handler = NextAuth(authOptions);
 
-  // Handle different API actions
-  switch (action) {
-    case 'check':
-      return checkAuth(request, config);
-    case 'server':
-      return getServerInfo(request, config);
-    case 'login': {
-      // Generate PKCE code verifier and challenge
-      const codeVerifier = generateCodeVerifier();
-      const codeChallenge = generateCodeChallenge(codeVerifier);
-      
-      // Generate state for CSRF protection
-      const state = generateState();
-      
-      // Create cookies and redirect to authorization endpoint
-      const response = NextResponse.redirect(
-        `${config.serverUrl}/oauth/authorize?` + 
-        `client_id=${config.clientId}&` +
-        `redirect_uri=${encodeURIComponent(config.redirectUri)}&` + 
-        `response_type=code&` +
-        `state=${state}&` +
-        `scope=${encodeURIComponent(config.scope || 'all openid')}&` +
-        `code_challenge=${codeChallenge}&` +
-        `code_challenge_method=S256`
-      );
-      
-      // Store code verifier and state in cookies
-      response.cookies.set('code_verifier', codeVerifier, { 
-        httpOnly: true, 
-        secure: process.env.NODE_ENV === 'production',
-        maxAge: 10 * 60, // 10 minutes
-        path: '/' 
-      });
-      
-      response.cookies.set('oauth_state', state, { 
-        httpOnly: true, 
-        secure: process.env.NODE_ENV === 'production',
-        maxAge: 10 * 60, // 10 minutes
-        path: '/' 
-      });
-      
-      return response;
-    }
-    case 'callback': {
-      // Get code and state from URL
-      const searchParams = request.nextUrl.searchParams;
-      const code = searchParams.get('code');
-      const state = searchParams.get('state');
-      
-      // Verify parameters
-      if (!code) {
-        return NextResponse.redirect('/auth/error?error=missing_code');
-      }
-      
-      // Verify state parameter
-      const savedState = request.cookies.get('oauth_state')?.value;
-      if (!savedState || savedState !== state) {
-        return NextResponse.redirect('/auth/error?error=invalid_state');
-      }
-      
-      // Get code verifier
-      const codeVerifier = request.cookies.get('code_verifier')?.value;
-      if (!codeVerifier) {
-        return NextResponse.redirect('/auth/error?error=missing_verifier');
-      }
-      
-      try {
-        // Exchange code for tokens
-        const tokenResponse = await exchangeToken(
-          NextResponse.json({ code, codeVerifier }) as unknown as NextRequest,
-          config
-        );
-        
-        // Clear temporary cookies
-        const response = NextResponse.redirect('/dashboard');
-        response.cookies.delete('code_verifier');
-        response.cookies.delete('oauth_state');
-        
-        return response;
-      } catch (error) {
-        console.error('Token exchange error:', error);
-        return NextResponse.redirect('/auth/error?error=token_exchange_failed');
-      }
-    }
-    default:
-      return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
-  }
-}
+export { handler as GET, handler as POST };
+```
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { action: string } }
-) {
-  const action = params.action;
+### API Routes (Next.js Pages Router)
 
-  // Handle different API actions
-  switch (action) {
-    case 'token':
-      return exchangeToken(request, config);
-    case 'refresh':
-      return refreshToken(request, config);
-    case 'logout':
-      return logout(request, config);
-    default:
-      return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
-  }
+Create a file `pages/api/auth/[...nextauth].ts`:
+
+```typescript
+import NextAuth from "next-auth";
+import FrappeProvider from "frappe-next-auth";
+import { NextApiRequest, NextApiResponse } from "next";
+
+export const authOptions = {
+  providers: [
+    FrappeProvider({
+      clientId: process.env.FRAPPE_CLIENT_ID || '',
+      clientSecret: process.env.FRAPPE_CLIENT_SECRET || '',
+      serverUrl: process.env.FRAPPE_SERVER_URL || '',
+    }),
+  ],
+  callbacks: {
+    async jwt({ token, account, profile }) {
+      // Persist the Frappe access_token to the token right after signin
+      if (account?.access_token) {
+        token.accessToken = account.access_token;
+      }
+      if (profile?.roles) {
+        token.roles = profile.roles;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      // Send properties to the client, like an access_token and roles
+      session.accessToken = token.accessToken as string;
+      session.user.roles = token.roles as string[];
+      return session;
+    },
+  },
+};
+
+export default function auth(req: NextApiRequest, res: NextApiResponse) {
+  return NextAuth(req, res, authOptions);
 }
 ```
 
-### Client-Side Auth Provider
+### Environment Variables
+
+```env
+# .env.local
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=your-nextauth-secret
+
+# Frappe OAuth settings
+FRAPPE_CLIENT_ID=your-frappe-client-id
+FRAPPE_CLIENT_SECRET=your-frappe-client-secret
+FRAPPE_SERVER_URL=https://your-frappe-server.com
+```
+
+### Client-Side Authentication with SessionProvider
 
 In your root layout or page component:
 
 ```tsx
+// app/layout.tsx (App Router)
 'use client';
 
-import { AuthProvider } from 'frappe-oauth-next';
+import { SessionProvider } from "next-auth/react";
 
 export default function RootLayout({
   children
@@ -164,85 +120,200 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <AuthProvider>
+        <SessionProvider>
           {children}
-        </AuthProvider>
+        </SessionProvider>
       </body>
     </html>
   );
 }
 ```
 
-### Using Auth Context in a Component
+Or for Pages Router:
+
+```tsx
+// pages/_app.tsx
+import { SessionProvider } from "next-auth/react";
+import type { AppProps } from "next/app";
+import type { Session } from "next-auth";
+
+export default function App({
+  Component,
+  pageProps: { session, ...pageProps },
+}: AppProps<{ session: Session }>) {
+  return (
+    <SessionProvider session={session}>
+      <Component {...pageProps} />
+    </SessionProvider>
+  );
+}
+```
+
+### Using Auth Hooks in a Component
 
 ```tsx
 'use client';
 
-import { useAuth } from 'frappe-oauth-next';
+import { useSession, signIn, signOut } from "next-auth/react";
 
 export default function Profile() {
-  const { isAuthenticated, isLoading, user, login, logout } = useAuth();
+  const { data: session, status } = useSession();
 
-  if (isLoading) {
+  if (status === "loading") {
     return <div>Loading...</div>;
   }
 
-  if (!isAuthenticated) {
+  if (status === "unauthenticated") {
     return (
       <div>
         <h1>Not Authenticated</h1>
-        <button onClick={login}>Login</button>
+        <button onClick={() => signIn("frappe")}>Login with Frappe</button>
       </div>
     );
   }
 
   return (
     <div>
-      <h1>Welcome, {user?.name || 'User'}</h1>
-      <pre>{JSON.stringify(user, null, 2)}</pre>
-      <button onClick={logout}>Logout</button>
+      <h1>Welcome, {session?.user?.name || 'User'}</h1>
+      <p>Email: {session?.user?.email}</p>
+      <p>Roles: {session?.user?.roles?.join(", ") || "No roles"}</p>
+      <p>Access Token: {session?.accessToken ? "Available" : "Not available"}</p>
+      <button onClick={() => signOut()}>Logout</button>
     </div>
   );
 }
 ```
 
-### API Proxy Example
+### Protected Route Example
+
+```tsx
+// app/protected/page.tsx (App Router)
+"use client";
+
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+
+export default function ProtectedPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/api/auth/signin");
+    }
+  }, [status, router]);
+
+  if (status === "loading") {
+    return <div>Loading...</div>;
+  }
+
+  return (
+    <div>
+      <h1>Protected Page</h1>
+      <p>You are logged in as {session?.user?.name}</p>
+    </div>
+  );
+}
+```
+
+### API Route with Session Authentication
+
+```typescript
+// app/api/protected/route.ts (App Router)
+import { getServerSession } from "next-auth/next";
+import { NextResponse } from "next/server";
+import { authOptions } from "../auth/[...nextauth]/route";
+
+export async function GET() {
+  const session = await getServerSession(authOptions);
+
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // You can access the Frappe token from the session
+  const accessToken = session.accessToken;
+
+  // You can check user roles
+  const isAdmin = session.user.roles?.includes("Administrator");
+
+  return NextResponse.json({
+    message: `Hello ${session.user.name}`,
+    isAdmin,
+  });
+}
+```
+
+Or for Pages API route:
+
+```typescript
+// pages/api/protected.ts
+import { NextApiRequest, NextApiResponse } from "next";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "./auth/[...nextauth]";
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const session = await getServerSession(req, res, authOptions);
+
+  if (!session) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  // You can access the Frappe token from the session
+  const accessToken = session.accessToken;
+
+  // You can check user roles
+  const isAdmin = session.user.roles?.includes("Administrator");
+
+  return res.json({
+    message: `Hello ${session.user.name}`,
+    isAdmin,
+  });
+}
+```
+
+### Fetching Data from Frappe Server with Access Token
 
 ```tsx
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useAuth } from 'frappe-oauth-next';
+import { useSession } from "next-auth/react";
+import { useState, useEffect } from "react";
 
 export default function TodoList() {
-  const { isAuthenticated } = useAuth();
+  const { data: session, status } = useSession();
   const [todos, setTodos] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (session?.accessToken) {
       fetchTodos();
     }
-  }, [isAuthenticated]);
+  }, [session]);
 
   async function fetchTodos() {
     try {
-      const response = await fetch('/api/frappe/todo?filters={"status":"Open"}');
+      const response = await fetch(`${process.env.NEXT_PUBLIC_FRAPPE_SERVER_URL}/api/resource/Todo`, {
+        headers: {
+          Authorization: `Bearer ${session?.accessToken}`,
+        },
+      });
       const data = await response.json();
       setTodos(data.data || []);
     } catch (error) {
-      console.error('Error fetching todos:', error);
+      console.error("Error fetching todos:", error);
     } finally {
       setLoading(false);
     }
   }
 
-  if (!isAuthenticated) {
-    return <div>Please login to view your todos</div>;
+  if (status === "loading" || loading) {
+    return <div>Loading...</div>;
   }
 
-  if (loading) {
-    return <div>Loading todos...</div>;
+  if (status === "unauthenticated") {
+    return <div>Please login to view your todos</div>;
   }
 
   return (
@@ -258,34 +329,91 @@ export default function TodoList() {
 }
 ```
 
-And the API proxy route:
+## Frappe-Specific Extensions
+
+### Types for TypeScript
+
+Extend the NextAuth session type in your project to include Frappe-specific fields:
 
 ```typescript
-// app/api/frappe/[...path]/route.ts
-import { NextRequest } from 'next/server';
-import { proxyToFrappeApi, FrappeOAuthConfig } from 'frappe-oauth-next';
+// types/next-auth.d.ts
+import { DefaultSession } from "next-auth";
 
-// Configure Frappe OAuth
-const config: FrappeOAuthConfig = {
-  clientId: process.env.FRAPPE_CLIENT_ID || '',
-  serverUrl: process.env.FRAPPE_SERVER_URL || '',
-  redirectUri: process.env.REDIRECT_URI || '',
-  scope: 'all openid'
-};
+declare module "next-auth" {
+  interface Session {
+    accessToken?: string;
+    user: {
+      roles?: string[];
+    } & DefaultSession["user"];
+  }
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { path: string[] } }
-) {
-  const path = params.path.join('/');
-  return proxyToFrappeApi(request, `/api/resource/${path}`, config);
+  interface Profile {
+    roles?: string[];
+  }
+
+  interface JWT {
+    accessToken?: string;
+    roles?: string[];
+  }
 }
+```
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { path: string[] } }
-) {
-  const path = params.path.join('/');
-  return proxyToFrappeApi(request, `/api/resource/${path}`, config);
+### Custom Frappe API Wrapper
+
+You can create a utility function to make authenticated requests to your Frappe server:
+
+```typescript
+// utils/frappe-api.ts
+import { getSession } from "next-auth/react";
+
+export async function frappeApiCall(endpoint: string, options: RequestInit = {}) {
+  const session = await getSession();
+  
+  if (!session?.accessToken) {
+    throw new Error("Not authenticated");
+  }
+  
+  const url = `${process.env.NEXT_PUBLIC_FRAPPE_SERVER_URL}/api/${endpoint}`;
+  
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      ...options.headers,
+      Authorization: `Bearer ${session.accessToken}`,
+      "Content-Type": "application/json",
+    },
+  });
+  
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.message || "API call failed");
+  }
+  
+  return response.json();
+}
+```
+
+Then use it in your components:
+
+```tsx
+import { frappeApiCall } from "../utils/frappe-api";
+
+export default function UserProfile() {
+  const [profile, setProfile] = useState(null);
+  
+  useEffect(() => {
+    async function fetchProfile() {
+      try {
+        const data = await frappeApiCall("resource/User?fields=[\"name\",\"email\",\"full_name\"]");
+        setProfile(data);
+      } catch (error) {
+        console.error("Error fetching profile:", error);
+      }
+    }
+    
+    fetchProfile();
+  }, []);
+  
+  // Render the profile
 }
 ``` 
