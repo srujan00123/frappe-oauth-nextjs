@@ -27,12 +27,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/frappe-oauth-nextjs.git"
+    "url": "https://github.com/srujan00123/frappe-oauth-nextjs.git#dist"
   },
   "bugs": {
-    "url": "https://github.com/yourusername/frappe-oauth-nextjs/issues"
+    "url": "https://github.com/srujan00123/frappe-oauth-nextjs/issues"
   },
-  "homepage": "https://github.com/yourusername/frappe-oauth-nextjs#readme",
+  "homepage": "https://github.com/srujan00123/frappe-oauth-nextjs#readme",
   "dependencies": {
     "jsonwebtoken": "^9.0.2"
   },
