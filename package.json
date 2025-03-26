@@ -1,6 +1,6 @@
 {
   "name": "frappe-next-auth",
-  "version": "2.0.2",
+  "version": "2.0.4",
   "description": "NextAuth.js provider for Frappe authentication with Next.js applications",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
