@@ -394,6 +394,9 @@ declare module "next-auth" {
     given_name?: string;
     family_name?: string;
     iss: string;
+    iat?: number;
+    exp?: number;
+    aud?: string;
   }
 
   interface JWT {
@@ -417,3 +420,102 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
+
+### Provider Configuration
+
+The Frappe provider accepts the following configuration options:
+
+```typescript
+interface FrappeProviderConfig {
+  clientId: string;          // Your Frappe OAuth client ID
+  clientSecret: string;      // Your Frappe OAuth client secret
+  serverUrl: string;         // Your Frappe server URL
+  authorization?: {          // Optional authorization endpoint configuration
+    params?: Record<string, string>;
+  };
+  userinfo?: {              // Optional userinfo endpoint configuration
+    url?: string;
+    params?: Record<string, string>;
+  };
+  token?: {                 // Optional token endpoint configuration
+    url?: string;
+    params?: Record<string, string>;
+  };
+  revocation?: {            // Optional token revocation endpoint
+    url?: string;
+  };
+  introspection?: {         // Optional token introspection endpoint
+    url?: string;
+  };
+}
+```
+
+### PKCE Implementation
+
+The Frappe provider implements PKCE (Proof Key for Code Exchange) for enhanced security:
+
+1. Generates a random code verifier using a cryptographically secure method
+2. Creates a code challenge using SHA-256 hashing
+3. Automatically handles the PKCE flow during authentication
+
+This implementation follows OAuth 2.0 best practices and provides additional security against authorization code interception attacks.
+
+### Error Handling
+
+The provider includes comprehensive error handling for various scenarios:
+
+```typescript
+// Handle token refresh errors
+useEffect(() => {
+  if (session?.error === "RefreshAccessTokenError") {
+    // Force sign in to resolve the refresh token error
+    signIn();
+  }
+}, [session]);
+
+// Handle API errors with proper error messages
+try {
+  const response = await fetch(`${process.env.NEXT_PUBLIC_FRAPPE_SERVER_URL}/api/resource/Todo`, {
+    headers: {
+      Authorization: `Bearer ${session?.accessToken}`,
+    },
+  });
+  
+  if (!response.ok) {
+    if (response.status === 401) {
+      throw new Error("Authentication error - token may be expired");
+    }
+    throw new Error(`API error: ${response.status}`);
+  }
+  
+  const data = await response.json();
+} catch (error) {
+  console.error("Error:", error);
+  // Handle the error appropriately
+}
+```
+
+### Secure Logout
+
+The provider supports secure token revocation on logout:
+
+```typescript
+const handleLogout = async () => {
+  if (session?.accessToken) {
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_FRAPPE_SERVER_URL}/api/method/frappe.integrations.oauth2.revoke_token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          token: session.accessToken,
+        })
+      });
+    } catch (error) {
+      console.error("Failed to revoke token:", error);
+    }
+  }
+  signOut();
+};
+```
