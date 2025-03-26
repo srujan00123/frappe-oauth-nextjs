@@ -1,6 +1,6 @@
-# Frappe OAuth NextJS Examples
+# Frappe OAuth Next Examples
 
-This directory contains examples of how to use the `frappe-oauth-nextjs` package.
+This directory contains examples of how to use the `frappe-oauth-next` package.
 
 ## Basic Setup
 
@@ -22,7 +22,7 @@ import {
   generateCodeChallenge,
   generateState,
   FrappeOAuthConfig
-} from 'frappe-oauth-nextjs';
+} from 'frappe-oauth-next';
 
 // Configure Frappe OAuth
 const config: FrappeOAuthConfig = {
@@ -154,7 +154,7 @@ In your root layout or page component:
 ```tsx
 'use client';
 
-import { AuthProvider } from 'frappe-oauth-nextjs';
+import { AuthProvider } from 'frappe-oauth-next';
 
 export default function RootLayout({
   children
@@ -178,7 +178,7 @@ export default function RootLayout({
 ```tsx
 'use client';
 
-import { useAuth } from 'frappe-oauth-nextjs';
+import { useAuth } from 'frappe-oauth-next';
 
 export default function Profile() {
   const { isAuthenticated, isLoading, user, login, logout } = useAuth();
@@ -212,7 +212,7 @@ export default function Profile() {
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuth } from 'frappe-oauth-nextjs';
+import { useAuth } from 'frappe-oauth-next';
 
 export default function TodoList() {
   const { isAuthenticated } = useAuth();
@@ -263,7 +263,7 @@ And the API proxy route:
 ```typescript
 // app/api/frappe/[...path]/route.ts
 import { NextRequest } from 'next/server';
-import { proxyToFrappeApi, FrappeOAuthConfig } from 'frappe-oauth-nextjs';
+import { proxyToFrappeApi, FrappeOAuthConfig } from 'frappe-oauth-next';
 
 // Configure Frappe OAuth
 const config: FrappeOAuthConfig = {

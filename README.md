@@ -14,7 +14,7 @@ A comprehensive OAuth client package for integrating Frappe with Next.js applica
 ## Installation
 
 ```bash
-npm install frappe-oauth-nextjs
+npm install frappe-oauth-next
 ```
 
 ## Basic Usage
@@ -36,7 +36,7 @@ import {
   generateCodeChallenge,
   generateState,
   FrappeOAuthConfig
-} from 'frappe-oauth-nextjs';
+} from 'frappe-oauth-next';
 
 // Configure Frappe OAuth
 const config: FrappeOAuthConfig = {
@@ -168,7 +168,7 @@ Wrap your application with the `AuthProvider`:
 // app/layout.tsx
 'use client';
 
-import { AuthProvider } from 'frappe-oauth-nextjs';
+import { AuthProvider } from 'frappe-oauth-next';
 
 export default function RootLayout({
   children
@@ -194,7 +194,7 @@ Use the `useAuth` hook in your components:
 ```tsx
 'use client';
 
-import { useAuth } from 'frappe-oauth-nextjs';
+import { useAuth } from 'frappe-oauth-next';
 
 export default function LoginButton() {
   const { isAuthenticated, isLoading, user, login, logout } = useAuth();
@@ -218,7 +218,7 @@ Create an API proxy to forward requests to Frappe:
 ```typescript
 // app/api/frappe/[...path]/route.ts
 import { NextRequest } from 'next/server';
-import { proxyToFrappeApi, FrappeOAuthConfig } from 'frappe-oauth-nextjs';
+import { proxyToFrappeApi, FrappeOAuthConfig } from 'frappe-oauth-next';
 
 const config: FrappeOAuthConfig = {
   clientId: process.env.FRAPPE_CLIENT_ID || '',

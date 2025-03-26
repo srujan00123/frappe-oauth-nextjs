@@ -1,5 +1,5 @@
 {
-  "name": "frappe-oauth-nextjs",
+  "name": "frappe-oauth-next",
   "version": "1.0.0",
   "description": "OAuth client for Frappe to work with Next.js applications with full authentication flow and utilities",
   "main": "dist/index.js",
